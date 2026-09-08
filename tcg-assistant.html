@@ -1,0 +1,2326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>门将娱乐</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#08080f">
+<meta name="description" content="门将娱乐 — 线下TCG卡牌辅助抽取与图鉴工具，支持手牌/驱策随机抽取、全屏展示与自定义牌库管理">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+
+<!-- iOS PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="门将娱乐">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- Fonts (with offline fallback via system fonts) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Noto+Serif+SC:wght@400;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg-deep: #08080f;
+  --bg-mid: #0e0e1a;
+  --bg-card: #14141f;
+  --bg-card-hover: #1a1a2a;
+  --gold: #c9a44c;
+  --gold-light: #e8c878;
+  --gold-dim: #8a7038;
+  --purple: #6b4d8a;
+  --purple-light: #9b7bbf;
+  --crimson: #8b2c2c;
+  --text-main: #d8d4c8;
+  --text-dim: #7a768a;
+  --text-bright: #f0ece0;
+  --border-gold: rgba(201, 164, 76, 0.35);
+  --border-gold-strong: rgba(201, 164, 76, 0.6);
+  --serif-display: 'Noto Serif SC', 'Cinzel', serif;
+  --serif-latin: 'Cinzel', serif;
+  --sans-body: 'Noto Sans SC', sans-serif;
+  --radius: 12px;
+  --transition: 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+html, body { height: 100%; overflow-x: hidden; }
+body {
+  font-family: var(--sans-body);
+  color: var(--text-main);
+  background: var(--bg-deep);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+/* ===== Atmospheric Background ===== */
+#bg-layers {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+}
+#bg-layers::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(107, 77, 138, 0.18), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 20% 80%, rgba(139, 44, 44, 0.1), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 85% 70%, rgba(201, 164, 76, 0.08), transparent 70%),
+    linear-gradient(180deg, #08080f 0%, #0c0c16 50%, #08080f 100%);
+}
+#bg-layers::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  opacity: 0.4;
+}
+
+/* Floating embers */
+.ember {
+  position: fixed;
+  width: 3px; height: 3px;
+  background: var(--gold);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--gold), 0 0 12px rgba(201, 164, 76, 0.4);
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  animation: ember-rise linear infinite;
+}
+@keyframes ember-rise {
+  0% { transform: translateY(100vh) translateX(0) scale(0); opacity: 0; }
+  10% { opacity: 0.6; transform: translateY(90vh) translateX(5px) scale(1); }
+  90% { opacity: 0.3; }
+  100% { transform: translateY(-10vh) translateX(30px) scale(0.5); opacity: 0; }
+}
+
+/* ===== App Container ===== */
+#app {
+  position: relative;
+  z-index: 10;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== Header ===== */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--border-gold);
+  background: linear-gradient(180deg, rgba(10,10,20,0.9), rgba(10,10,20,0.6));
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.app-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.app-header .brand-icon {
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-gold-strong);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201,164,76,0.15), transparent);
+  position: relative;
+}
+.app-header .brand-icon::before {
+  content: '';
+  position: absolute; inset: 3px;
+  border: 1px solid var(--border-gold);
+  border-radius: 50%;
+}
+.app-header .brand-icon svg { width: 18px; height: 18px; }
+.app-header .brand-text {
+  font-family: var(--serif-latin);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--gold-light);
+  text-transform: uppercase;
+}
+.app-header .brand-text span {
+  font-family: var(--serif-display);
+  color: var(--text-bright);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin-left: 8px;
+  font-size: 15px;
+}
+.app-header .header-stats {
+  display: flex;
+  gap: 20px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: var(--serif-latin);
+  letter-spacing: 0.1em;
+}
+.app-header .header-stats span b {
+  color: var(--gold-light);
+  font-weight: 600;
+}
+
+/* ===== Views ===== */
+.view {
+  display: none;
+  flex: 1;
+  animation: viewFadeIn 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.view.active { display: flex; flex-direction: column; }
+@keyframes viewFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Home View ===== */
+#view-home {
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  position: relative;
+}
+.home-title {
+  text-align: center;
+  margin-bottom: 50px;
+}
+.home-title h1 {
+  font-family: var(--serif-display);
+  font-size: clamp(28px, 5vw, 48px);
+  font-weight: 900;
+  color: var(--text-bright);
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 30px rgba(201, 164, 76, 0.3);
+  margin-bottom: 10px;
+}
+.home-title h1::before, .home-title h1::after {
+  content: '✦';
+  font-size: 0.5em;
+  color: var(--gold);
+  margin: 0 0.4em;
+  vertical-align: middle;
+}
+.home-title p {
+  font-size: 14px;
+  color: var(--text-dim);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  font-family: var(--serif-latin);
+}
+
+.home-buttons {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 1100px;
+  width: 100%;
+}
+
+.portal-btn {
+  width: 300px;
+  height: 420px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  font-family: inherit;
+}
+.portal-btn:hover { transform: translateY(-12px) scale(1.02); }
+.portal-btn:active { transform: translateY(-6px) scale(0.99); }
+
+.portal-card {
+  width: 100%; height: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(160deg, #15151f 0%, #0c0c14 100%);
+  border: 1px solid var(--border-gold);
+  box-shadow:
+    0 4px 20px rgba(0,0,0,0.5),
+    inset 0 0 60px rgba(201, 164, 76, 0.05);
+  transition: box-shadow 0.5s, border-color 0.5s;
+  display: flex;
+  flex-direction: column;
+}
+.portal-btn:hover .portal-card {
+  border-color: var(--border-gold-strong);
+  box-shadow:
+    0 8px 40px rgba(0,0,0,0.6),
+    0 0 30px rgba(201, 164, 76, 0.15),
+    inset 0 0 80px rgba(201, 164, 76, 0.08);
+}
+
+.portal-card::before {
+  content: '';
+  position: absolute; inset: 6px;
+  border: 1px solid rgba(201, 164, 76, 0.15);
+  border-radius: 12px;
+  pointer-events: none;
+}
+.portal-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 30%, var(--glow, rgba(201,164,76,0.12)), transparent 70%);
+  pointer-events: none;
+}
+
+.portal-icon-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 30px;
+}
+.portal-icon-area svg {
+  width: 80px; height: 80px;
+  filter: drop-shadow(0 0 12px var(--glow-strong, rgba(201,164,76,0.4)));
+  transition: transform 0.5s, filter 0.5s;
+}
+.portal-btn:hover .portal-icon-area svg {
+  transform: scale(1.15) rotate(-5deg);
+  filter: drop-shadow(0 0 20px var(--glow-strong, rgba(201,164,76,0.6)));
+}
+
+.portal-info {
+  padding: 0 24px 30px;
+  text-align: center;
+  position: relative;
+}
+.portal-info h2 {
+  font-family: var(--serif-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+.portal-info p {
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.15em;
+}
+
+/* Card type accent colors */
+.portal-btn[data-type="hand"] { --glow: rgba(139,44,44,0.15); --glow-strong: rgba(200,80,80,0.5); }
+.portal-btn[data-type="hand"] .portal-info h2 { color: #e8a070; }
+.portal-btn[data-type="drive"] { --glow: rgba(107,77,138,0.15); --glow-strong: rgba(155,123,191,0.5); }
+.portal-btn[data-type="drive"] .portal-info h2 { color: var(--purple-light); }
+.portal-btn[data-type="library"] { --glow: rgba(201,164,76,0.12); --glow-strong: rgba(201,164,76,0.5); }
+.portal-btn[data-type="library"] .portal-info h2 { color: var(--gold-light); }
+
+/* Decorative corners on portal cards */
+.portal-corner {
+  position: absolute;
+  width: 24px; height: 24px;
+  border: 1px solid var(--border-gold);
+  opacity: 0.5;
+}
+.portal-corner.tl { top: 12px; left: 12px; border-right: none; border-bottom: none; }
+.portal-corner.tr { top: 12px; right: 12px; border-left: none; border-bottom: none; }
+.portal-corner.bl { bottom: 12px; left: 12px; border-right: none; border-top: none; }
+.portal-corner.br { bottom: 12px; right: 12px; border-left: none; border-top: none; }
+
+/* ===== Draw View ===== */
+#view-draw {
+  padding: 30px 20px 60px;
+  align-items: center;
+}
+.draw-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.draw-header h2 {
+  font-family: var(--serif-display);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+.draw-header h2 .accent { color: var(--gold-light); }
+.draw-header p {
+  font-size: 13px;
+  color: var(--text-dim);
+  letter-spacing: 0.2em;
+}
+
+.draw-cards {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 1200px;
+  width: 100%;
+}
+
+.draw-card {
+  width: 340px;
+  min-height: 460px;
+  border-radius: 14px;
+  border: 1px solid var(--border-gold);
+  background: linear-gradient(170deg, #14141f 0%, #0c0c14 100%);
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  animation: drawCardEnter 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.draw-card:nth-child(1) { animation-delay: 0.1s; }
+.draw-card:nth-child(2) { animation-delay: 0.25s; }
+.draw-card:nth-child(3) { animation-delay: 0.4s; }
+@keyframes drawCardEnter {
+  from { opacity: 0; transform: translateY(40px) rotateY(30deg); }
+  to { opacity: 1; transform: translateY(0) rotateY(0); }
+}
+.draw-card:hover {
+  border-color: var(--gold);
+  box-shadow: 0 0 30px rgba(201, 164, 76, 0.2), 0 8px 30px rgba(0,0,0,0.5);
+  transform: translateY(-8px);
+}
+.draw-card::before {
+  content: '';
+  position: absolute; inset: 5px;
+  border: 1px solid rgba(201, 164, 76, 0.12);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.draw-card-tag {
+  display: inline-block;
+  padding: 4px 14px;
+  font-size: 11px;
+  font-family: var(--serif-latin);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border-radius: 20px;
+  margin: 20px 0 0 20px;
+  align-self: flex-start;
+  border: 1px solid;
+}
+.draw-card-tag.hand { color: #e8a070; border-color: rgba(232,160,112,0.4); background: rgba(139,44,44,0.15); }
+.draw-card-tag.drive { color: var(--purple-light); border-color: rgba(155,123,191,0.4); background: rgba(107,77,138,0.15); }
+.draw-card-tag.general { color: var(--gold-light); border-color: var(--border-gold-strong); background: rgba(201,164,76,0.1); }
+
+.draw-card-body {
+  padding: 16px 22px 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.draw-card-title {
+  font-family: var(--serif-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: 0.04em;
+  margin-bottom: 14px;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(201, 164, 76, 0.15);
+  padding-bottom: 12px;
+}
+.draw-card-text {
+  font-size: 14px;
+  color: var(--text-main);
+  line-height: 1.8;
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.draw-card-footer {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(201, 164, 76, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.draw-card:hover .draw-card-footer {
+  opacity: 1;
+  color: var(--gold-light);
+}
+
+.draw-actions {
+  margin-top: 36px;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+/* ===== Buttons ===== */
+.btn {
+  padding: 12px 32px;
+  border: 1px solid var(--border-gold);
+  background: linear-gradient(180deg, rgba(20,20,31,0.8), rgba(12,12,20,0.8));
+  color: var(--text-main);
+  font-family: var(--serif-display);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn:hover {
+  border-color: var(--gold);
+  color: var(--gold-light);
+  box-shadow: 0 0 20px rgba(201, 164, 76, 0.15);
+}
+.btn-primary {
+  background: linear-gradient(180deg, rgba(201,164,76,0.2), rgba(138,112,56,0.1));
+  border-color: var(--border-gold-strong);
+  color: var(--gold-light);
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg, rgba(201,164,76,0.3), rgba(138,112,56,0.15));
+  box-shadow: 0 0 25px rgba(201, 164, 76, 0.25);
+}
+.btn-danger {
+  border-color: rgba(139, 44, 44, 0.5);
+  color: #e07070;
+}
+.btn-danger:hover {
+  border-color: rgba(200, 80, 80, 0.7);
+  color: #f08080;
+  box-shadow: 0 0 15px rgba(139, 44, 44, 0.2);
+}
+.btn-sm {
+  padding: 6px 16px;
+  font-size: 12px;
+}
+.btn-icon {
+  padding: 8px;
+  width: 36px; height: 36px;
+  justify-content: center;
+}
+
+/* ===== Full Screen Reveal ===== */
+#reveal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(8,8,15,0.95), rgba(0,0,0,0.98));
+  backdrop-filter: blur(12px);
+  flex-direction: column;
+  gap: 30px;
+}
+#reveal-overlay.active {
+  display: flex;
+  animation: revealBgIn 0.5s ease both;
+}
+@keyframes revealBgIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.reveal-card {
+  width: 460px;
+  max-width: 90vw;
+  min-height: 600px;
+  border-radius: 18px;
+  border: 2px solid var(--gold);
+  background: linear-gradient(170deg, #181820 0%, #0a0a0f 100%);
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  animation: revealCardIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow:
+    0 0 60px rgba(201, 164, 76, 0.2),
+    0 20px 60px rgba(0, 0, 0, 0.6),
+    inset 0 0 100px rgba(201, 164, 76, 0.03);
+}
+@keyframes revealCardIn {
+  0% { opacity: 0; transform: scale(0.5) rotateY(180deg); }
+  50% { opacity: 1; transform: scale(0.8) rotateY(0); }
+  100% { opacity: 1; transform: scale(1) rotateY(0); }
+}
+.reveal-card::before {
+  content: '';
+  position: absolute; inset: 8px;
+  border: 1px solid var(--border-gold);
+  border-radius: 14px;
+  pointer-events: none;
+}
+.reveal-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(201,164,76,0.1), transparent);
+  pointer-events: none;
+}
+
+.reveal-tag {
+  align-self: center;
+  margin: 28px 0 0;
+  padding: 6px 20px;
+  font-size: 12px;
+  font-family: var(--serif-latin);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  border-radius: 20px;
+  border: 1px solid;
+}
+.reveal-tag.hand { color: #e8a070; border-color: rgba(232,160,112,0.4); background: rgba(139,44,44,0.15); }
+.reveal-tag.drive { color: var(--purple-light); border-color: rgba(155,123,191,0.4); background: rgba(107,77,138,0.15); }
+.reveal-tag.general { color: var(--gold-light); border-color: var(--border-gold-strong); background: rgba(201,164,76,0.1); }
+
+.reveal-body {
+  padding: 20px 36px 36px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.reveal-title {
+  font-family: var(--serif-display);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text-bright);
+  text-align: center;
+  letter-spacing: 0.05em;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-gold);
+  line-height: 1.4;
+}
+.reveal-text {
+  font-size: 16px;
+  color: var(--text-main);
+  line-height: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
+}
+
+.reveal-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.reveal-ornament {
+  position: absolute;
+  pointer-events: none;
+}
+.reveal-ornament.top {
+  top: 10px; left: 50%; transform: translateX(-50%);
+  font-size: 14px; color: var(--gold); opacity: 0.6;
+}
+.reveal-ornament.bottom {
+  bottom: 10px; left: 50%; transform: translateX(-50%);
+  font-size: 14px; color: var(--gold); opacity: 0.4;
+}
+
+/* ===== Library View ===== */
+#view-library {
+  padding: 24px 20px 60px;
+}
+.library-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 28px;
+  max-width: 1200px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+.library-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.filter-chip {
+  padding: 8px 20px;
+  border: 1px solid var(--border-gold);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--serif-display);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.filter-chip:hover { color: var(--text-main); border-color: var(--border-gold-strong); }
+.filter-chip.active {
+  background: rgba(201, 164, 76, 0.12);
+  color: var(--gold-light);
+  border-color: var(--border-gold-strong);
+}
+.filter-chip .count {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 6px;
+}
+.filter-chip.active .count { color: var(--gold); }
+
+.library-search {
+  position: relative;
+}
+.library-search input {
+  width: 240px;
+  padding: 10px 16px 10px 40px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-gold);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-family: var(--sans-body);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s;
+}
+.library-search input:focus { border-color: var(--gold); }
+.library-search input::placeholder { color: var(--text-dim); }
+.library-search svg {
+  position: absolute;
+  left: 12px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px;
+  color: var(--text-dim);
+}
+
+/* ===== Export / Import buttons ===== */
+.lib-actions-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.btn-outline {
+  border-color: var(--border-gold);
+  color: var(--text-dim);
+  background: transparent;
+}
+.btn-outline:hover {
+  color: var(--gold-light);
+  border-color: var(--border-gold-strong);
+}
+.btn-outline svg { width: 16px; height: 16px; }
+
+/* ===== Import Modal ===== */
+.import-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-gold);
+}
+.import-tab {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--serif-display);
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s;
+}
+.import-tab.active {
+  color: var(--gold-light);
+  border-bottom-color: var(--gold);
+}
+.import-tab:hover { color: var(--text-main); }
+
+.import-panel { display: none; }
+.import-panel.active { display: block; }
+
+.import-dropzone {
+  border: 2px dashed var(--border-gold);
+  border-radius: 10px;
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: rgba(201, 164, 76, 0.03);
+}
+.import-dropzone:hover,
+.import-dropzone.dragover {
+  border-color: var(--gold);
+  background: rgba(201, 164, 76, 0.08);
+}
+.import-dropzone svg {
+  width: 40px; height: 40px;
+  color: var(--gold-dim);
+  margin-bottom: 12px;
+}
+.import-dropzone p {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.import-dropzone .hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  opacity: 0.6;
+  margin-top: 6px;
+}
+
+.import-textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 12px 16px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-gold);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-family: var(--sans-body);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  line-height: 1.6;
+}
+.import-textarea:focus { border-color: var(--gold); }
+.import-textarea::placeholder { color: var(--text-dim); }
+
+.import-options {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.import-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.import-option input[type="radio"] {
+  accent-color: var(--gold);
+  width: 16px; height: 16px;
+  cursor: pointer;
+}
+
+.import-preview {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: rgba(201, 164, 76, 0.06);
+  border: 1px solid var(--border-gold);
+  font-size: 13px;
+  color: var(--text-main);
+  display: none;
+}
+.import-preview.show { display: block; }
+.import-preview .stat {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.import-preview .stat b { color: var(--gold-light); }
+
+/* Export menu */
+.export-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  background: linear-gradient(170deg, #14141f 0%, #0c0c14 100%);
+  border: 1px solid var(--border-gold-strong);
+  border-radius: 10px;
+  padding: 6px;
+  min-width: 200px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  display: none;
+  z-index: 50;
+}
+.export-menu.show { display: block; animation: viewFadeIn 0.25s ease; }
+.export-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-main);
+  font-family: var(--sans-body);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s;
+  text-align: left;
+}
+.export-menu button:hover {
+  background: rgba(201, 164, 76, 0.1);
+  color: var(--gold-light);
+}
+.export-menu button svg { width: 16px; height: 16px; flex-shrink: 0; }
+.export-menu .menu-divider {
+  height: 1px;
+  background: var(--border-gold);
+  margin: 4px 8px;
+  opacity: 0.4;
+}
+.export-wrap { position: relative; }
+
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.lib-card {
+  border-radius: 12px;
+  border: 1px solid var(--border-gold);
+  background: linear-gradient(170deg, #14141f 0%, #0c0c14 100%);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+}
+.lib-card:hover {
+  border-color: var(--border-gold-strong);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+.lib-card::before {
+  content: '';
+  position: absolute; inset: 4px;
+  border: 1px solid rgba(201, 164, 76, 0.08);
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.lib-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 0;
+}
+.lib-card-tag {
+  padding: 3px 12px;
+  font-size: 10px;
+  font-family: var(--serif-latin);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-radius: 16px;
+  border: 1px solid;
+}
+.lib-card-tag.hand { color: #e8a070; border-color: rgba(232,160,112,0.4); background: rgba(139,44,44,0.12); }
+.lib-card-tag.drive { color: var(--purple-light); border-color: rgba(155,123,191,0.4); background: rgba(107,77,138,0.12); }
+.lib-card-tag.general { color: var(--gold-light); border-color: var(--border-gold-strong); background: rgba(201,164,76,0.08); }
+
+.lib-card-actions {
+  display: flex;
+  gap: 6px;
+}
+.lib-card-actions button {
+  width: 30px; height: 30px;
+  border: 1px solid var(--border-gold);
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  transition: all 0.25s;
+}
+.lib-card-actions button:hover { color: var(--gold-light); border-color: var(--border-gold-strong); }
+.lib-card-actions button.del:hover { color: #f08080; border-color: rgba(200,80,80,0.5); }
+.lib-card-actions svg { width: 14px; height: 14px; }
+
+.lib-card-body {
+  padding: 12px 20px 20px;
+}
+.lib-card-title {
+  font-family: var(--serif-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: 0.03em;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(201, 164, 76, 0.1);
+  line-height: 1.4;
+}
+.lib-card-text {
+  font-size: 13px;
+  color: var(--text-main);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-dim);
+}
+.empty-state svg { width: 64px; height: 64px; opacity: 0.3; margin-bottom: 16px; }
+.empty-state p { font-size: 16px; }
+
+/* ===== Modal ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+}
+.modal-overlay.active { display: flex; animation: viewFadeIn 0.3s ease; }
+
+.modal {
+  width: 520px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: 14px;
+  border: 1px solid var(--border-gold-strong);
+  background: linear-gradient(170deg, #14141f 0%, #0c0c14 100%);
+  padding: 0;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.modal::before {
+  content: '';
+  position: absolute; inset: 5px;
+  border: 1px solid rgba(201, 164, 76, 0.1);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.modal-header {
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid var(--border-gold);
+}
+.modal-header h3 {
+  font-family: var(--serif-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-bright);
+  letter-spacing: 0.05em;
+}
+
+.modal-body {
+  padding: 20px 28px;
+}
+.form-group {
+  margin-bottom: 20px;
+}
+.form-group label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  letter-spacing: 0.1em;
+  font-family: var(--serif-latin);
+  text-transform: uppercase;
+}
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-gold);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-family: var(--sans-body);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.3s;
+  resize: vertical;
+}
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus { border-color: var(--gold); }
+.form-group textarea { min-height: 120px; line-height: 1.7; }
+.form-group select { cursor: pointer; }
+.form-group select option { background: var(--bg-card); }
+
+.modal-footer {
+  padding: 16px 28px 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid var(--border-gold);
+}
+
+/* ===== Confirm Dialog ===== */
+.confirm-dialog {
+  width: 400px;
+  max-width: 90vw;
+  border-radius: 14px;
+  border: 1px solid var(--border-gold-strong);
+  background: linear-gradient(170deg, #14141f 0%, #0c0c14 100%);
+  padding: 28px;
+  text-align: center;
+  position: relative;
+}
+.confirm-dialog p {
+  font-size: 15px;
+  color: var(--text-main);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+.confirm-dialog .card-name {
+  color: var(--gold-light);
+  font-weight: 600;
+}
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  padding: 12px 28px;
+  background: linear-gradient(180deg, #1a1a2a, #0e0e16);
+  border: 1px solid var(--border-gold-strong);
+  border-radius: 8px;
+  color: var(--gold-light);
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  z-index: 2000;
+  opacity: 0;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .app-header { padding: 14px 16px; }
+  .app-header .brand-text { font-size: 14px; }
+  .app-header .header-stats { display: none; }
+  .home-buttons { gap: 16px; }
+  .portal-btn { width: 280px; height: 380px; }
+  .draw-cards { gap: 16px; }
+  .draw-card { width: 100%; max-width: 340px; }
+  .library-search input { width: 100%; }
+  .library-toolbar { flex-direction: column; align-items: stretch; }
+  .library-grid { grid-template-columns: 1fr; }
+  .lib-actions-group { justify-content: flex-end; }
+  .reveal-card { min-height: 500px; }
+  .reveal-body { padding: 16px 24px 28px; }
+  .reveal-title { font-size: 24px; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border-gold); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-gold-strong); }
+
+/* ===== PWA Install Banner ===== */
+#install-banner {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 500;
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+  border-radius: 14px;
+  border: 1px solid var(--border-gold-strong);
+  background: linear-gradient(160deg, #14141f 0%, #0c0c14 100%);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 20px rgba(201,164,76,0.1);
+  max-width: 320px;
+  animation: viewFadeIn 0.5s ease;
+}
+#install-banner.show { display: flex; }
+#install-banner h4 {
+  font-family: var(--serif-display);
+  font-size: 16px;
+  color: var(--text-bright);
+  letter-spacing: 0.05em;
+}
+#install-banner p {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+#install-banner .install-actions {
+  display: flex;
+  gap: 10px;
+}
+#install-banner .close-btn {
+  position: absolute;
+  top: 10px; right: 10px;
+  width: 24px; height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+#install-banner .close-btn:hover { color: var(--gold-light); }
+
+/* ===== Offline indicator ===== */
+#offline-badge {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: var(--serif-latin);
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  border: 1px solid var(--border-gold);
+  border-radius: 20px;
+}
+#offline-badge.show { display: flex; }
+#offline-badge::before {
+  content: '';
+  width: 6px; height: 6px;
+  background: var(--gold-dim);
+  border-radius: 50%;
+}
+</style>
+</head>
+<body>
+
+<div id="bg-layers"></div>
+
+<div id="app">
+  <!-- ===== Header ===== -->
+  <header class="app-header">
+    <div class="brand" onclick="navigate('home')">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--gold-light);">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div class="brand-text">门将<span>娱乐</span></div>
+    </div>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <div class="header-stats" id="header-stats"></div>
+      <span id="offline-badge">OFFLINE</span>
+    </div>
+  </header>
+
+  <!-- ===== Home View ===== -->
+  <section id="view-home" class="view active">
+    <div class="home-title">
+      <h1>命运之选</h1>
+      <p>Choose Your Fate</p>
+    </div>
+    <div class="home-buttons">
+      <button class="portal-btn" data-type="hand" onclick="startDraw('hand')">
+        <div class="portal-card">
+          <span class="portal-corner tl"></span>
+          <span class="portal-corner tr"></span>
+          <span class="portal-corner bl"></span>
+          <span class="portal-corner br"></span>
+          <div class="portal-icon-area">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: #e8a070;">
+              <path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+              <path d="M9 6h6M9 10h6M9 14h4"/>
+              <circle cx="12" cy="18" r="1"/>
+            </svg>
+          </div>
+          <div class="portal-info">
+            <h2>手牌</h2>
+            <p>HAND DRAW</p>
+          </div>
+        </div>
+      </button>
+
+      <button class="portal-btn" data-type="drive" onclick="startDraw('drive')">
+        <div class="portal-card">
+          <span class="portal-corner tl"></span>
+          <span class="portal-corner tr"></span>
+          <span class="portal-corner bl"></span>
+          <span class="portal-corner br"></span>
+          <div class="portal-icon-area">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--purple-light);">
+              <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/>
+              <path d="M13 2l.01 0"/>
+            </svg>
+          </div>
+          <div class="portal-info">
+            <h2>驱策</h2>
+            <p>DRIVE DRAW</p>
+          </div>
+        </div>
+      </button>
+
+      <button class="portal-btn" data-type="library" onclick="navigate('library')">
+        <div class="portal-card">
+          <span class="portal-corner tl"></span>
+          <span class="portal-corner tr"></span>
+          <span class="portal-corner bl"></span>
+          <span class="portal-corner br"></span>
+          <div class="portal-icon-area">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--gold-light);">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              <path d="M9 7h7M9 11h5"/>
+            </svg>
+          </div>
+          <div class="portal-info">
+            <h2>图鉴</h2>
+            <p>CODEX</p>
+          </div>
+        </div>
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== Draw View ===== -->
+  <section id="view-draw" class="view">
+    <div class="draw-header">
+      <h2 id="draw-title"><span class="accent">手牌</span> 抽取</h2>
+      <p id="draw-subtitle">从手牌库与通用库中随机抽取三张，选择你的命运</p>
+    </div>
+    <div class="draw-cards" id="draw-cards"></div>
+    <div class="draw-actions">
+      <button class="btn" onclick="redraw()">重新抽取</button>
+      <button class="btn" onclick="navigate('home')">返回主页</button>
+    </div>
+  </section>
+
+  <!-- ===== Library View ===== -->
+  <section id="view-library" class="view">
+    <div class="library-toolbar">
+      <div class="library-filters" id="library-filters">
+        <button class="filter-chip active" data-filter="all">全部<span class="count" id="count-all">0</span></button>
+        <button class="filter-chip" data-filter="hand">手牌<span class="count" id="count-hand">0</span></button>
+        <button class="filter-chip" data-filter="drive">驱策<span class="count" id="count-drive">0</span></button>
+        <button class="filter-chip" data-filter="general">通用<span class="count" id="count-general">0</span></button>
+      </div>
+      <div class="lib-actions-group">
+        <div class="library-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.3-4.3"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="搜索卡牌名称或文本…" oninput="renderLibrary()">
+        </div>
+        <div class="export-wrap">
+          <button class="btn btn-outline btn-sm" onclick="toggleExportMenu(event)" title="导出牌库">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            导出
+          </button>
+          <div class="export-menu" id="export-menu">
+            <button onclick="exportFile('json')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              下载文件
+            </button>
+            <button onclick="exportShare()" id="export-share-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              分享发送
+            </button>
+            <div class="menu-divider"></div>
+            <button onclick="exportClipboard()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>
+              复制到剪贴板
+            </button>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="openImportModal()" title="导入牌库">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          导入
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ 添加</button>
+      </div>
+    </div>
+    <div class="library-grid" id="library-grid"></div>
+  </section>
+</div>
+
+<!-- ===== Full Screen Reveal ===== -->
+<div id="reveal-overlay">
+  <div class="reveal-card" id="reveal-card-content">
+    <span class="reveal-ornament top">✦ ❖ ✦</span>
+    <span class="reveal-ornament bottom">✦ ❖ ✦</span>
+  </div>
+  <div class="reveal-actions">
+    <button class="btn btn-primary" onclick="closeReveal()">确认选择</button>
+    <button class="btn" onclick="closeRevealAndRedraw()">重新抽取</button>
+  </div>
+</div>
+
+<!-- ===== Modal: Add/Edit Card ===== -->
+<div class="modal-overlay" id="card-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">添加卡牌</h3>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>卡牌名称</label>
+        <input type="text" id="form-title" placeholder="输入卡牌名称…">
+      </div>
+      <div class="form-group">
+        <label>所属分类</label>
+        <select id="form-category">
+          <option value="hand">手牌</option>
+          <option value="drive">驱策</option>
+          <option value="general">通用</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>卡牌效果文本</label>
+        <textarea id="form-text" placeholder="输入卡牌效果文本…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="modal-save-btn" onclick="saveCard()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Confirm Dialog ===== -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="confirm-dialog">
+    <p>确认删除 <span class="card-name" id="confirm-card-name"></span> ？</p>
+    <div class="confirm-actions">
+      <button class="btn" onclick="closeConfirm()">取消</button>
+      <button class="btn btn-danger" id="confirm-delete-btn">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Import Modal ===== -->
+<div class="modal-overlay" id="import-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>导入牌库</h3>
+    </div>
+    <div class="modal-body">
+      <div class="import-tabs">
+        <button class="import-tab active" data-tab="file" onclick="switchImportTab('file')">文件导入</button>
+        <button class="import-tab" data-tab="text" onclick="switchImportTab('text')">粘贴文本</button>
+      </div>
+
+      <!-- File import panel -->
+      <div class="import-panel active" id="panel-file">
+        <div class="import-dropzone" id="import-dropzone" onclick="document.getElementById('import-file-input').click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <p>点击选择文件，或拖拽到此处</p>
+          <p class="hint">支持 .json 格式</p>
+        </div>
+        <input type="file" id="import-file-input" accept=".json,application/json" style="display:none;" onchange="handleFileImport(event)">
+      </div>
+
+      <!-- Text import panel -->
+      <div class="import-panel" id="panel-text">
+        <textarea class="import-textarea" id="import-text" placeholder="将之前导出的JSON文本粘贴到此处…"></textarea>
+      </div>
+
+      <!-- Import options -->
+      <div class="import-options">
+        <label class="import-option">
+          <input type="radio" name="import-mode" value="merge" checked>
+          <span>合并：保留现有卡牌，追加导入的卡牌</span>
+        </label>
+        <label class="import-option">
+          <input type="radio" name="import-mode" value="replace">
+          <span>替换：清空现有卡牌，使用导入的数据</span>
+        </label>
+      </div>
+
+      <!-- Preview -->
+      <div class="import-preview" id="import-preview">
+        <div class="stat"><span>总卡牌数</span><b id="preview-total">0</b></div>
+        <div class="stat"><span>手牌</span><b id="preview-hand">0</b></div>
+        <div class="stat"><span>驱策</span><b id="preview-drive">0</b></div>
+        <div class="stat"><span>通用</span><b id="preview-general">0</b></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeImportModal()">取消</button>
+      <button class="btn btn-primary" onclick="doImport()" id="import-confirm-btn" disabled>导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Toast ===== -->
+<div class="toast" id="toast"></div>
+
+<!-- PWA Install Banner -->
+<div id="install-banner">
+  <button class="close-btn" onclick="dismissInstall()">×</button>
+  <h4>安装为应用</h4>
+  <p>将门将娱乐安装到桌面，离线随时可用，全屏沉浸体验。</p>
+  <div class="install-actions">
+    <button class="btn btn-primary btn-sm" id="install-btn">安装应用</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  Default Card Data
+// ============================================================
+const DEFAULT_CARDS = [
+  // ===== 手牌库 =====
+  { title: "额外牌库", category: "hand", text: "展示至多10张牌置于牌库旁作为额外牌库。额外牌库的卡只在你需要从牌组特殊召唤单位时视作在卡组里，这些牌返回牌库时，只会返回额外牌库。" },
+  { title: "死亡刻印", category: "hand", text: "游戏开始时，展示牌堆顶五张牌，选择其中一张单位牌，本局其与其同名牌获得【不死之身】（仅限你的牌），然后将这五张牌返回牌库并洗牌。" },
+  { title: "我说过牌大于一切", category: "hand", text: "本局你触发的cnt效果改为\u201C抽一张牌，此效果不能变更\u201D。cnt牌获得效果\u201C因忽略cnt效果而进入伤害区时，抽两张牌\u201D" },
+  { title: "会玩", category: "hand", text: "你的门将获得能力\u201C通常【回合1】：弃置你的所有手牌，选择牌库一张牌，加入手牌。\u201D" },
+  { title: "雨停过后，我便会死", category: "hand", text: "你的门将获得能力\u201C通常：【游戏1】你可以装着不具有【装着】的单位牌，若如此做，回合结束时，你败北\u201D" },
+  { title: "创生之法", category: "hand", text: "将你的cnt替换，其中事件牌替换为《幻想之海》，非事件牌替换为《世界树》" },
+  { title: "冠军连招", category: "hand", text: "获得包含木花、光翼、关公各一张的额外牌库。你不从卡组抽初始手牌，而是直接获得克拉拉、靴子猫、李狐狸、幻想之海（若为后手，两张）作为初始手牌，这些牌是额外牌库的牌。" },
+  { title: "这就是我等待一生的巨浪", category: "hand", text: "你的门将获得能力\u201C即时【游戏1】：准备3点能量，将你的手牌全部变成《A7 柴郡猫》\u201D" },
+
+  // ===== 驱策库 =====
+  { title: "九鬼拍门", category: "drive", text: "随机将你卡组的9张牌替换为《鬼上身》×4；《作祟鬼》×1；《美鬓公关云长》×4" },
+  { title: "猛区过江", category: "drive", text: "将你卡组中非cnt牌替换为《地狱暴龙队长》，cnt牌替换为《野性狂暴》。" },
+
+  // ===== 通用库 =====
+  { title: "superhero", category: "general", text: "你的门将失去其他攻击时能力，未装着时，atk改为9，stk改为2，并获得【二次攻击】【即死】。" },
+  { title: "撕咬战术", category: "general", text: "你场上的单位+3atk。" },
+  { title: "轮回转生", category: "general", text: "你的回合结束时，将双方坟墓区的非暗牌洗回牌组。" },
+  { title: "我说删牌大于一切", category: "general", text: "游戏开始时，展示牌库顶20张牌，将其中任意张置于此誓约下，其余洗回牌库。" },
+  { title: "我来组成头部", category: "general", text: "你失去攻击区，获得两个前排装备区和两个后排装备区，你的门将获得装备区内的单位的atk和stk，以及能力\u201C攻击破坏单位后，可以横置装备区的一个单位，准备此卡\u201D。" },
+  { title: "阴阳倒转", category: "general", text: "游戏开始时，从牌库顶将等同于你的门将生命上限的牌置入伤害区。\n本局游戏，你不能调整伤害区卡牌顺序；\n你的剩余生命值为伤害区的牌数，败北判定改为伤害区没有牌；\n受到伤害使用伤害区顶的牌进行伤害判定；\n回复生命/伤判cnt置坟改为将牌库顶的牌置于伤害区底；\nDR改为从伤害区自上而下将背面向上的牌翻正，恢复DR自下而上；\n置入伤害区改为伤害区的牌置坟。" },
+  { title: "十二梦魇", category: "general", text: "随机将你卡组中的12张牌替换为《梦魇造物》" },
+  { title: "将众人护至身前", category: "general", text: "召唤权+1，你的防御区数量+1。你的单位进场后，若防御区有空余格子，移动至防御区。" },
+  { title: "万法归一", category: "general", text: "选择你牌库的一张事件牌，本局游戏，你的其他事件牌的效果、费用、cnt（非cnt事件不能因此获得cnt，cnt能力也不会因此消失）改为与此卡相同。" },
+  { title: "舞动全场", category: "general", text: "你选择卡组中的4张牌，将其替换为特殊的《xxx 迪斯科！！》，xxx为替换前的牌所具有的派系，文本中的\u201C惊奇宇宙\u201D也替换为\u201Cxxx\u201D。你的所有《迪斯科》强化，文本中的\u201C【od】\u201D改为\u201C【od】或【td】\u201D。" },
+  { title: "加速同调连光都能超越", category: "general", text: "你的【创生召唤】/【深渊召唤】的时机改为即时。" },
+  { title: "万剑归宗", category: "general", text: "将你卡组中的cnt牌替换为《命运之剑》。你使用《命运之剑》费用-1。" },
+  { title: "超级阿米尔", category: "general", text: "将你卡组的cnt牌替换为阿米尔。若[闪击·绮罗]没有成功破坏单位，除外对方牌库顶的1张牌。" },
+  { title: "强韧！无敌！最强！", category: "general", text: "你选择卡组里的三张牌，将其替换为等级8[光][龙]、atk：3000、HP：2500、stk：4的无能力单位牌《青眼白龙》。\n你可以将你场上的两个单位置于墓地，无需支付能量通常召唤《青眼白龙》。" },
+  { title: "艺术就是爆炸", category: "general", text: "将你卡组的cnt牌替换为《小红帽轰炸者 卡拉贝拉》，其所有能力取消[游戏1]限制。" },
+  { title: "巨龙军团", category: "general", text: "获得一个拥有无穷无尽的2级龙的额外牌库。若你的门将卡组等级上限＞50，将你卡组中的非cnt牌替换为《幻影的维诺卡洛斯》，cnt牌替换为《隐藏的神化》；≤50，则只替换等级2的牌。" },
+  { title: "次元斩", category: "general", text: "你的门将获得能力\u201C【游戏1】你的回合开始时，可以额外执行1次回合开始时动作，跳过你的下个回合开始。\u201D" },
+  { title: "雨一直下", category: "general", text: "无视条件使你获得《S3-01 彼岸因果的附属誓约》、《S3-02 缘之魔法的附属誓约》和《S3-03 命运无常的附属誓约》" },
+  { title: "奇才", category: "general", text: "选择你卡组的四张牌，将他们替换为《棋才 贝尔塔》。游戏开始时，你为你卡组里的棋才重新选择「堡垒象」的四个词条。" },
+  { title: "猜拳游戏", category: "general", text: "双方每次发起攻击，都需要进行一次猜拳，胜者可以选择无效掉此次攻击。" },
+  { title: "社交的手腕", category: "general", text: "双方都能在自己的回合结束时，查看对手的牌库，选择一张置于此誓约下。" },
+  { title: "通透世界", category: "general", text: "你可以随时查看对方可见的信息。你可以随时查看双方牌堆顶的牌。" },
+  { title: "把你的蛋蛋变成朋友", category: "general", text: "选择卡组的4张牌，替换为《诚心的尽小花》（等级1事件牌，即时：选择我方/对方场上的一张牌，使其变成等级2，属性3，3，3的[超自然]无能力单位特殊召唤到原本操作者的场上。此牌置入门系统结束期间，双方不能使用其他牌或能力。）" },
+];
+
+// ============================================================
+//  State
+// ============================================================
+const STORAGE_KEY = 'tcg_assistant_cards_v1';
+let cards = [];
+let currentDrawType = 'hand';
+let drawnCards = [];
+let editingCardId = null;
+let pendingDeleteId = null;
+let currentFilter = 'all';
+
+const CATEGORY_LABELS = {
+  hand: '手牌',
+  drive: '驱策',
+  general: '通用'
+};
+
+// ============================================================
+//  Data Layer
+// ============================================================
+function loadData() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try {
+      cards = JSON.parse(stored);
+    } catch {
+      cards = JSON.parse(JSON.stringify(DEFAULT_CARDS));
+      saveData();
+    }
+  } else {
+    cards = DEFAULT_CARDS.map((c, i) => ({ ...c, id: 'card_' + Date.now() + '_' + i }));
+    saveData();
+  }
+  // Ensure IDs
+  cards = cards.map((c, i) => {
+    if (!c.id) c.id = 'card_' + Date.now() + '_' + i;
+    return c;
+  });
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+}
+
+function getCardsByCategory(cat) {
+  return cards.filter(c => c.category === cat);
+}
+
+function getDrawPool(type) {
+  if (type === 'hand') {
+    return [...getCardsByCategory('hand'), ...getCardsByCategory('general')];
+  } else if (type === 'drive') {
+    return [...getCardsByCategory('drive'), ...getCardsByCategory('general')];
+  }
+  return [];
+}
+
+// ============================================================
+//  Navigation
+// ============================================================
+function navigate(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const target = document.getElementById('view-' + view);
+  if (target) target.classList.add('active');
+  if (view === 'library') renderLibrary();
+  updateHeaderStats();
+  window.scrollTo(0, 0);
+}
+
+// ============================================================
+//  Draw Logic
+// ============================================================
+function startDraw(type) {
+  currentDrawType = type;
+  const pool = getDrawPool(type);
+  if (pool.length === 0) {
+    showToast(type === 'hand' ? '手牌库与通用库为空，请先添加卡牌' : '驱策库与通用库为空，请先添加卡牌');
+    return;
+  }
+  doDraw();
+  const titleEl = document.getElementById('draw-title');
+  const subEl = document.getElementById('draw-subtitle');
+  if (type === 'hand') {
+    titleEl.innerHTML = '<span class="accent">手牌</span> 抽取';
+    subEl.textContent = '从手牌库与通用库中随机抽取三张，选择你的命运';
+  } else {
+    titleEl.innerHTML = '<span class="accent">驱策</span> 抽取';
+    subEl.textContent = '从驱策库与通用库中随机抽取三张，选择你的命运';
+  }
+  navigate('draw');
+}
+
+function doDraw() {
+  const pool = getDrawPool(currentDrawType);
+  // Shuffle and pick 3 (or fewer if pool < 3)
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  drawnCards = shuffled.slice(0, Math.min(3, shuffled.length));
+  renderDrawCards();
+}
+
+function renderDrawCards() {
+  const container = document.getElementById('draw-cards');
+  container.innerHTML = '';
+
+  if (drawnCards.length === 0) {
+    container.innerHTML = '<div class="empty-state"><p>牌库不足，无法抽取</p></div>';
+    return;
+  }
+
+  drawnCards.forEach((card, idx) => {
+    const div = document.createElement('div');
+    div.className = 'draw-card';
+    div.onclick = () => revealCard(card);
+    div.style.animationDelay = (0.1 + idx * 0.15) + 's';
+
+    const tagClass = card.category;
+    const tagLabel = CATEGORY_LABELS[card.category];
+
+    div.innerHTML = `
+      <div class="draw-card-tag ${tagClass}">${tagLabel}</div>
+      <div class="draw-card-body">
+        <div class="draw-card-title">${escapeHtml(card.title)}</div>
+        <div class="draw-card-text">${escapeHtml(card.text)}</div>
+      </div>
+      <div class="draw-card-footer" style="padding: 0 22px 20px;">
+        <span>点击选择此牌</span>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function redraw() {
+  doDraw();
+}
+
+// ============================================================
+//  Reveal
+// ============================================================
+function revealCard(card) {
+  const overlay = document.getElementById('reveal-overlay');
+  const content = document.getElementById('reveal-card-content');
+
+  const tagClass = card.category;
+  const tagLabel = CATEGORY_LABELS[card.category];
+
+  // Keep ornaments
+  content.innerHTML = `
+    <span class="reveal-ornament top">✦ ❖ ✦</span>
+    <span class="reveal-ornament bottom">✦ ❖ ✦</span>
+    <div class="reveal-tag ${tagClass}">${tagLabel}</div>
+    <div class="reveal-body">
+      <div class="reveal-title">${escapeHtml(card.title)}</div>
+      <div class="reveal-text">${escapeHtml(card.text)}</div>
+    </div>
+  `;
+
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeReveal() {
+  document.getElementById('reveal-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function closeRevealAndRedraw() {
+  closeReveal();
+  setTimeout(() => doDraw(), 300);
+}
+
+// ============================================================
+//  Library
+// ============================================================
+function renderLibrary() {
+  const grid = document.getElementById('library-grid');
+  const searchTerm = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+
+  let filtered = cards;
+  if (currentFilter !== 'all') {
+    filtered = filtered.filter(c => c.category === currentFilter);
+  }
+  if (searchTerm) {
+    filtered = filtered.filter(c =>
+      c.title.toLowerCase().includes(searchTerm) ||
+      c.text.toLowerCase().includes(searchTerm)
+    );
+  }
+
+  // Sort by category then title
+  const catOrder = { hand: 0, drive: 1, general: 2 };
+  filtered.sort((a, b) => {
+    const d = catOrder[a.category] - catOrder[b.category];
+    if (d !== 0) return d;
+    return a.title.localeCompare(b.title, 'zh-CN');
+  });
+
+  grid.innerHTML = '';
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color: var(--text-dim);">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+        <p>${searchTerm ? '未找到匹配的卡牌' : '牌库为空，点击「添加卡牌」开始构建'}</p>
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(card => {
+    const div = document.createElement('div');
+    div.className = 'lib-card';
+    const tagClass = card.category;
+    const tagLabel = CATEGORY_LABELS[card.category];
+
+    div.innerHTML = `
+      <div class="lib-card-header">
+        <span class="lib-card-tag ${tagClass}">${tagLabel}</span>
+        <div class="lib-card-actions">
+          <button onclick="openEditModal('${card.id}')" title="编辑">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          <button class="del" onclick="openConfirm('${card.id}')" title="删除">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
+              <path d="M10 11v6M14 11v6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="lib-card-body">
+        <div class="lib-card-title">${escapeHtml(card.title)}</div>
+        <div class="lib-card-text">${escapeHtml(card.text)}</div>
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function updateCounts() {
+  document.getElementById('count-all').textContent = cards.length;
+  document.getElementById('count-hand').textContent = getCardsByCategory('hand').length;
+  document.getElementById('count-drive').textContent = getCardsByCategory('drive').length;
+  document.getElementById('count-general').textContent = getCardsByCategory('general').length;
+}
+
+function updateHeaderStats() {
+  const stats = document.getElementById('header-stats');
+  stats.innerHTML = `
+    <span>HAND <b>${getCardsByCategory('hand').length}</b></span>
+    <span>DRIVE <b>${getCardsByCategory('drive').length}</b></span>
+    <span>GENERAL <b>${getCardsByCategory('general').length}</b></span>
+    <span>TOTAL <b>${cards.length}</b></span>
+  `;
+  updateCounts();
+}
+
+// ============================================================
+//  Modal: Add/Edit
+// ============================================================
+function openAddModal() {
+  editingCardId = null;
+  document.getElementById('modal-title').textContent = '添加卡牌';
+  document.getElementById('form-title').value = '';
+  document.getElementById('form-category').value = 'hand';
+  document.getElementById('form-text').value = '';
+  document.getElementById('card-modal').classList.add('active');
+  setTimeout(() => document.getElementById('form-title').focus(), 100);
+}
+
+function openEditModal(id) {
+  const card = cards.find(c => c.id === id);
+  if (!card) return;
+  editingCardId = id;
+  document.getElementById('modal-title').textContent = '编辑卡牌';
+  document.getElementById('form-title').value = card.title;
+  document.getElementById('form-category').value = card.category;
+  document.getElementById('form-text').value = card.text;
+  document.getElementById('card-modal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('card-modal').classList.remove('active');
+  editingCardId = null;
+}
+
+function saveCard() {
+  const title = document.getElementById('form-title').value.trim();
+  const category = document.getElementById('form-category').value;
+  const text = document.getElementById('form-text').value.trim();
+
+  if (!title) {
+    showToast('请输入卡牌名称');
+    document.getElementById('form-title').focus();
+    return;
+  }
+  if (!text) {
+    showToast('请输入卡牌效果文本');
+    document.getElementById('form-text').focus();
+    return;
+  }
+
+  if (editingCardId) {
+    const card = cards.find(c => c.id === editingCardId);
+    if (card) {
+      card.title = title;
+      card.category = category;
+      card.text = text;
+    }
+    showToast('卡牌已更新');
+  } else {
+    cards.push({
+      id: 'card_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      title, category, text
+    });
+    showToast('卡牌已添加');
+  }
+  saveData();
+  closeModal();
+  renderLibrary();
+  updateHeaderStats();
+}
+
+// ============================================================
+//  Confirm Delete
+// ============================================================
+function openConfirm(id) {
+  const card = cards.find(c => c.id === id);
+  if (!card) return;
+  pendingDeleteId = id;
+  document.getElementById('confirm-card-name').textContent = card.title;
+  document.getElementById('confirm-modal').classList.add('active');
+  document.getElementById('confirm-delete-btn').onclick = () => {
+    cards = cards.filter(c => c.id !== pendingDeleteId);
+    saveData();
+    closeConfirm();
+    renderLibrary();
+    updateHeaderStats();
+    showToast('卡牌已删除');
+  };
+}
+
+function closeConfirm() {
+  document.getElementById('confirm-modal').classList.remove('active');
+  pendingDeleteId = null;
+}
+
+// ============================================================
+//  Toast
+// ============================================================
+let toastTimer = null;
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ============================================================
+//  Utilities
+// ============================================================
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ============================================================
+//  Filter chips
+// ============================================================
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilter = chip.dataset.filter;
+    renderLibrary();
+  });
+});
+
+// ============================================================
+//  Keyboard shortcuts
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('reveal-overlay').classList.contains('active')) {
+      closeReveal();
+    } else if (document.getElementById('card-modal').classList.contains('active')) {
+      closeModal();
+    } else if (document.getElementById('confirm-modal').classList.contains('active')) {
+      closeConfirm();
+    } else if (document.getElementById('import-modal').classList.contains('active')) {
+      closeImportModal();
+    }
+  }
+});
+
+// Close modal on overlay click
+document.getElementById('card-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'card-modal') closeModal();
+});
+document.getElementById('confirm-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'confirm-modal') closeConfirm();
+});
+document.getElementById('reveal-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'reveal-overlay') closeReveal();
+});
+
+// ============================================================
+//  Export / Import
+// ============================================================
+let pendingImportData = null;
+
+// --- Export Menu ---
+function toggleExportMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('export-menu');
+  menu.classList.toggle('show');
+}
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('export-menu');
+  if (menu && !menu.contains(e.target) && !e.target.closest('.export-wrap')) {
+    menu.classList.remove('show');
+  }
+});
+
+// Build export JSON
+function buildExportData() {
+  return {
+    app: '门将娱乐',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    cardCount: cards.length,
+    cards: cards.map(c => ({ title: c.title, category: c.category, text: c.text }))
+  };
+}
+
+function buildExportFilename() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `门将娱乐_牌库_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+}
+
+// Download as file
+function exportFile() {
+  document.getElementById('export-menu').classList.remove('show');
+  const data = buildExportData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = buildExportFilename();
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('牌库已导出为文件');
+}
+
+// Share via Web Share API (mobile-friendly)
+async function exportShare() {
+  document.getElementById('export-menu').classList.remove('show');
+  const data = buildExportData();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const file = new File([blob], buildExportFilename(), { type: 'application/json' });
+
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        title: '门将娱乐 - 牌库数据',
+        text: `共 ${cards.length} 张卡牌`,
+        files: [file]
+      });
+      showToast('分享成功');
+    } catch (e) {
+      if (e.name !== 'AbortError') showToast('分享失败：' + e.message);
+    }
+  } else {
+    // Fallback: download
+    exportFile();
+    showToast('当前环境不支持分享，已下载文件');
+  }
+}
+
+// Copy to clipboard
+async function exportClipboard() {
+  document.getElementById('export-menu').classList.remove('show');
+  const json = JSON.stringify(buildExportData(), null, 2);
+  try {
+    await navigator.clipboard.writeText(json);
+    showToast('牌库数据已复制到剪贴板');
+  } catch {
+    // Fallback for non-secure contexts
+    const ta = document.createElement('textarea');
+    ta.value = json;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      showToast('牌库数据已复制到剪贴板');
+    } catch {
+      showToast('复制失败，请手动选择文本');
+    }
+    document.body.removeChild(ta);
+  }
+}
+
+// --- Import Modal ---
+function openImportModal() {
+  pendingImportData = null;
+  document.getElementById('import-text').value = '';
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-preview').classList.remove('show');
+  document.getElementById('import-confirm-btn').disabled = true;
+  switchImportTab('file');
+  document.getElementById('import-modal').classList.add('active');
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').classList.remove('active');
+  pendingImportData = null;
+}
+
+function switchImportTab(tab) {
+  document.querySelectorAll('.import-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === tab);
+  });
+  document.querySelectorAll('.import-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  validateImport();
+}
+
+// Parse imported data
+function parseImportData(jsonStr) {
+  const data = JSON.parse(jsonStr);
+  if (!data || !Array.isArray(data.cards)) {
+    throw new Error('数据格式不正确');
+  }
+  // Validate and normalize cards
+  return data.cards.map((c, i) => ({
+    id: 'import_' + Date.now() + '_' + i,
+    title: String(c.title || '').trim(),
+    category: ['hand', 'drive', 'general'].includes(c.category) ? c.category : 'general',
+    text: String(c.text || '').trim()
+  })).filter(c => c.title && c.text);
+}
+
+function showImportPreview(importCards) {
+  const preview = document.getElementById('import-preview');
+  document.getElementById('preview-total').textContent = importCards.length;
+  document.getElementById('preview-hand').textContent = importCards.filter(c => c.category === 'hand').length;
+  document.getElementById('preview-drive').textContent = importCards.filter(c => c.category === 'drive').length;
+  document.getElementById('preview-general').textContent = importCards.filter(c => c.category === 'general').length;
+  preview.classList.add('show');
+  document.getElementById('import-confirm-btn').disabled = importCards.length === 0;
+}
+
+function validateImport() {
+  const activeTab = document.querySelector('.import-tab.active')?.dataset.tab || 'file';
+  if (activeTab === 'text') {
+    const text = document.getElementById('import-text').value.trim();
+    if (!text) {
+      pendingImportData = null;
+      document.getElementById('import-preview').classList.remove('show');
+      document.getElementById('import-confirm-btn').disabled = true;
+      return;
+    }
+    try {
+      pendingImportData = parseImportData(text);
+      showImportPreview(pendingImportData);
+    } catch {
+      pendingImportData = null;
+      document.getElementById('import-preview').classList.remove('show');
+      document.getElementById('import-confirm-btn').disabled = true;
+    }
+  } else {
+    // File tab — only show preview if file was loaded
+    if (!pendingImportData) {
+      document.getElementById('import-preview').classList.remove('show');
+      document.getElementById('import-confirm-btn').disabled = true;
+    }
+  }
+}
+
+// File input handler
+function handleFileImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      pendingImportData = parseImportData(e.target.result);
+      showImportPreview(pendingImportData);
+      showToast(`已加载 ${file.name}（${pendingImportData.length} 张卡牌）`);
+    } catch (err) {
+      pendingImportData = null;
+      document.getElementById('import-preview').classList.remove('show');
+      document.getElementById('import-confirm-btn').disabled = true;
+      showToast('文件解析失败：' + err.message);
+    }
+  };
+  reader.onerror = () => showToast('文件读取失败');
+  reader.readAsText(file);
+}
+
+// Drag and drop
+const dropzone = document.getElementById('import-dropzone');
+if (dropzone) {
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.classList.add('dragover');
+  });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+      showToast('请选择 JSON 文件');
+      return;
+    }
+    // Simulate file input
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    document.getElementById('import-file-input').files = dt.files;
+    handleFileImport({ target: { files: [file] } });
+  });
+}
+
+// Text input live validation
+document.getElementById('import-text').addEventListener('input', validateImport);
+
+// Perform import
+function doImport() {
+  if (!pendingImportData || pendingImportData.length === 0) return;
+  const mode = document.querySelector('input[name="import-mode"]:checked').value;
+
+  if (mode === 'replace') {
+    cards = [...pendingImportData];
+  } else {
+    // Merge — avoid exact duplicates (same title + category + text)
+    const existingKeys = new Set(cards.map(c => `${c.title}|${c.category}|${c.text}`));
+    const newCards = pendingImportData.filter(c =>
+      !existingKeys.has(`${c.title}|${c.category}|${c.text}`)
+    );
+    cards = [...cards, ...newCards];
+  }
+
+  saveData();
+  closeImportModal();
+  renderLibrary();
+  updateHeaderStats();
+  const modeLabel = mode === 'replace' ? '替换' : '合并';
+  showToast(`牌库已${modeLabel}导入（共 ${cards.length} 张）`);
+}
+
+// Close import modal on overlay click
+document.getElementById('import-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'import-modal') closeImportModal();
+});
+
+// Hide share button if Web Share API not available
+if (!navigator.share) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('export-share-btn');
+    if (btn && !navigator.share) btn.style.display = 'none';
+  });
+}
+
+// ============================================================
+//  Embers
+// ============================================================
+function createEmbers() {
+  const count = 15;
+  for (let i = 0; i < count; i++) {
+    const ember = document.createElement('div');
+    ember.className = 'ember';
+    ember.style.left = Math.random() * 100 + '%';
+    ember.style.animationDuration = (8 + Math.random() * 12) + 's';
+    ember.style.animationDelay = Math.random() * 15 + 's';
+    ember.style.width = (1 + Math.random() * 3) + 'px';
+    ember.style.height = ember.style.width;
+    document.body.appendChild(ember);
+  }
+}
+
+// ============================================================
+//  Init
+// ============================================================
+loadData();
+updateHeaderStats();
+updateCounts();
+createEmbers();
+
+// ============================================================
+//  PWA: Service Worker Registration
+// ============================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => {
+        // Listen for updates
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                showToast('应用已更新，刷新以加载新版本');
+              }
+            });
+          }
+        });
+      })
+      .catch((err) => console.warn('SW registration failed:', err));
+  });
+}
+
+// ============================================================
+//  PWA: Install Prompt
+// ============================================================
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').classList.add('show');
+});
+
+document.getElementById('install-btn').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') {
+    showToast('应用安装成功');
+  }
+  deferredPrompt = null;
+  document.getElementById('install-banner').classList.remove('show');
+});
+
+function dismissInstall() {
+  document.getElementById('install-banner').classList.remove('show');
+  deferredPrompt = null;
+}
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-banner').classList.remove('show');
+  showToast('应用已安装，可在桌面找到');
+});
+
+// ============================================================
+//  Offline Detection
+// ============================================================
+function updateOnlineStatus() {
+  const badge = document.getElementById('offline-badge');
+  if (!navigator.onLine) {
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
+</script>
+</body>
+</html>

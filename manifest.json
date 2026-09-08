@@ -1,0 +1,28 @@
+{
+  "name": "门将娱乐",
+  "short_name": "门将娱乐",
+  "description": "门将娱乐 — 线下TCG卡牌辅助抽取与图鉴工具，支持手牌/驱策随机抽取、全屏展示与自定义牌库管理",
+  "start_url": "./tcg-assistant.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#08080f",
+  "theme_color": "#08080f",
+  "categories": ["games", "utilities"],
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

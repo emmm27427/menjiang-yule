@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#14141f"/>
+      <stop offset="60%" stop-color="#0c0c16"/>
+      <stop offset="100%" stop-color="#08080f"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8c878"/>
+      <stop offset="50%" stop-color="#c9a44c"/>
+      <stop offset="100%" stop-color="#8a7038"/>
+    </linearGradient>
+    <linearGradient id="goldDim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#c9a44c" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#8a7038" stop-opacity="0.3"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Outer ornate border -->
+  <rect x="32" y="32" width="448" height="448" rx="72" fill="none" stroke="url(#gold)" stroke-width="2" opacity="0.5"/>
+  <rect x="44" y="44" width="424" height="424" rx="64" fill="none" stroke="url(#goldDim)" stroke-width="1" opacity="0.4"/>
+  <!-- Decorative corners -->
+  <g stroke="url(#gold)" stroke-width="2" fill="none" opacity="0.5">
+    <path d="M 72 52 L 72 72 L 52 72"/>
+    <path d="M 460 52 L 460 72 L 440 72"/>
+    <path d="M 72 460 L 72 440 L 52 440"/>
+    <path d="M 460 460 L 460 440 L 440 440"/>
+  </g>
+  <!-- Central card stack -->
+  <g transform="translate(256 256)">
+    <!-- Back card (tilted left) -->
+    <g transform="rotate(-12) translate(-10 8)">
+      <rect x="-60" y="-85" width="120" height="170" rx="10" fill="#1a1a2a" stroke="url(#gold)" stroke-width="1.5" opacity="0.7"/>
+    </g>
+    <!-- Back card (tilted right) -->
+    <g transform="rotate(12) translate(10 4)">
+      <rect x="-60" y="-85" width="120" height="170" rx="10" fill="#181828" stroke="url(#gold)" stroke-width="1.5" opacity="0.85"/>
+    </g>
+    <!-- Front card -->
+    <g transform="rotate(0)">
+      <rect x="-65" y="-90" width="130" height="180" rx="12" fill="#14141f" stroke="url(#gold)" stroke-width="2"/>
+      <rect x="-58" y="-83" width="116" height="166" rx="8" fill="none" stroke="url(#goldDim)" stroke-width="0.8" opacity="0.4"/>
+      <!-- Card inner ornament -->
+      <circle cx="0" cy="-50" r="14" fill="none" stroke="url(#gold)" stroke-width="1.5" opacity="0.6"/>
+      <circle cx="0" cy="-50" r="8" fill="none" stroke="url(#gold)" stroke-width="1" opacity="0.4"/>
+      <!-- Diamond suit -->
+      <path d="M 0 -25 L 14 0 L 0 25 L -14 0 Z" fill="url(#gold)" opacity="0.8"/>
+      <path d="M 0 -18 L 9 0 L 0 18 L -9 0 Z" fill="#0c0c14" opacity="0.6"/>
+      <!-- Lines representing text -->
+      <g stroke="url(#gold)" stroke-width="1.5" opacity="0.3" stroke-linecap="round">
+        <line x1="-40" y1="45" x2="40" y2="45"/>
+        <line x1="-35" y1="55" x2="35" y2="55"/>
+        <line x1="-38" y1="65" x2="25" y2="65"/>
+      </g>
+      <!-- Bottom ornament -->
+      <text x="0" y="80" text-anchor="middle" font-family="serif" font-size="14" fill="url(#gold)" opacity="0.5">门将</text>
+    </g>
+  </g>
+  <!-- Top ornament -->
+  <text x="256" y="100" text-anchor="middle" font-family="serif" font-size="20" fill="url(#gold)" opacity="0.4" letter-spacing="6">✦ ❖ ✦</text>
+</svg>
