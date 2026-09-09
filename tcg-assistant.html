@@ -1368,6 +1368,7 @@ body {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           导入
         </button>
+        <button class="btn btn-outline btn-sm" onclick="confirmResetToDefault()" title="重置为线上最新默认牌库">↻ 重置默认</button>
         <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ 添加</button>
       </div>
     </div>
@@ -2223,6 +2224,18 @@ function doImport() {
   updateHeaderStats();
   const modeLabel = mode === 'replace' ? '替换' : '合并';
   showToast(`牌库已${modeLabel}导入（共 ${cards.length} 张）`);
+}
+
+// ============================================================
+//  Reset to Default Cards
+// ============================================================
+function confirmResetToDefault() {
+  if (confirm('重置为默认牌库？\n\n这将清空当前所有卡牌，恢复为线上最新默认牌库（' + DEFAULT_CARDS.length + ' 张）。\n\n你的自定义卡牌将丢失，建议先导出备份。')) {
+    cards = DEFAULT_CARDS.map((c, i) => ({ ...c, id: 'card_' + Date.now() + '_' + i }));
+    saveData();
+    renderLibrary();
+    showToast(`已重置为默认牌库（共 ${cards.length} 张）`);
+  }
 }
 
 // Close import modal on overlay click
