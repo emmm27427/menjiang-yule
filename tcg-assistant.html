@@ -2283,20 +2283,43 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
       .then((reg) => {
+        // Check for updates immediately
+        reg.update();
+        
         // Listen for updates
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
           if (newWorker) {
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                showToast('应用已更新，刷新以加载新版本');
+                // New SW is waiting — force it to activate immediately
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                showToast('正在更新到最新版本…');
               }
             });
+          }
+        });
+
+        // Reload page when new SW takes control
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
           }
         });
       })
       .catch((err) => console.warn('SW registration failed:', err));
   });
+
+  // Check for SW updates every 60 seconds
+  setInterval(() => {
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg) reg.update();
+      });
+    }
+  }, 60000);
 }
 
 // ============================================================

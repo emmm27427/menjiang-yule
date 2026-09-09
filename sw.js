@@ -1,6 +1,6 @@
 // 门将娱乐 - Service Worker
 // Cache version — bump this when releasing updates
-const CACHE_VERSION = 'tcg-assistant-v5';
+const CACHE_VERSION = 'tcg-assistant-v6';
 const CACHE_NAME = CACHE_VERSION;
 
 // Core assets to cache on install
