@@ -1,6 +1,6 @@
 // 门将娱乐 - Service Worker
 // Cache version — bump this when releasing updates
-const CACHE_VERSION = 'tcg-assistant-v4';
+const CACHE_VERSION = 'tcg-assistant-v5';
 const CACHE_NAME = CACHE_VERSION;
 
 // Core assets to cache on install
@@ -38,7 +38,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: cache-first strategy, fall back to network, cache new resources
+// Fetch: network-first for navigation, cache-first for assets
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
@@ -51,6 +51,26 @@ self.addEventListener('fetch', (event) => {
 
   if (!isSameOrigin && !isFontRequest) return;
 
+  // Network-first for navigation requests (HTML pages) — ensures latest version
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then(cache =>
+            cache.put(event.request, clone)
+          );
+        }
+        return networkResponse;
+      }).catch(() => {
+        // Offline — return cached main page
+        return caches.match(event.request).then(cached => cached || caches.match('./tcg-assistant.html'));
+      })
+    );
+    return;
+  }
+
+  // Cache-first for everything else (assets, fonts, etc.)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       // Return cached response immediately if available
